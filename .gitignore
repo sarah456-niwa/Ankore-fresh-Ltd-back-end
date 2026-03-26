@@ -1,0 +1,22 @@
+# Virtual environment
+.venv/
+
+# Env & secrets
+.env
+db.sqlite3
+logs.txt
+
+# Python cache
+__pycache__/
+*.pyc
+*.pyo
+*.pyd
+
+# Static/Media (generated)
+static/
+media/
+
+# IDE
+.vscode/
+.idea/
+*.code-workspace
