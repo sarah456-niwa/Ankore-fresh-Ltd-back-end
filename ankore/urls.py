@@ -3,6 +3,8 @@ from django.urls import path, include
 from django.conf import settings
 from django.conf.urls.static import static
 from drf_spectacular.views import SpectacularAPIView, SpectacularSwaggerView
+from .admin import admin_site  # Import custom admin
+
 
 urlpatterns = [
     path('admin/', admin.site.urls),

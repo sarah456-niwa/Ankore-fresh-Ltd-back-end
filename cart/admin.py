@@ -4,7 +4,7 @@ from .models import Cart, CartItem
 
 @admin.register(Cart)
 class CartAdmin(admin.ModelAdmin):
-    list_display = ['id', 'user', 'total_items', 'total_quantity', 'total_amount', 'created_at']
+    list_display = ['id', 'user', 'total_items', 'total_quantity', 'total_amount', 'created_at', 'updated_at']
     list_filter = ['created_at']
     search_fields = ['user__email', 'user__username']
     readonly_fields = ['created_at', 'updated_at']
@@ -23,10 +23,10 @@ class CartAdmin(admin.ModelAdmin):
 
 @admin.register(CartItem)
 class CartItemAdmin(admin.ModelAdmin):
-    list_display = ['id', 'product', 'quantity', 'price_at_add', 'subtotal', 'created_at']
-    list_filter = ['created_at']
+    list_display = ['id', 'product', 'quantity', 'price_at_add', 'subtotal']
+    list_filter = []  # Removed created_at filter since it doesn't exist
     search_fields = ['product__name', 'cart__user__email']
-    readonly_fields = ['price_at_add', 'created_at']
+    readonly_fields = ['price_at_add']  # Removed created_at since it doesn't exist
     
     def subtotal(self, obj):
         return f"UGX {obj.subtotal}"
