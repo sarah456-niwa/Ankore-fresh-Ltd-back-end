@@ -69,10 +69,15 @@ TEMPLATES = [
 
 WSGI_APPLICATION = 'ankore.wsgi.application'
 
+# ========== DATABASE CONFIGURATION - PostgreSQL ==========
 DATABASES = {
     'default': {
-        'ENGINE': 'django.db.backends.sqlite3',
-        'NAME': BASE_DIR / 'db.sqlite3',
+        'ENGINE': 'django.db.backends.postgresql',
+        'NAME': 'ankore_fresh_db',
+        'USER': 'postgres',
+        'PASSWORD': 'admin123',          # Your password
+        'HOST': 'localhost',
+        'PORT': '5432',
     }
 }
 
@@ -140,3 +145,6 @@ SPECTACULAR_SETTINGS = {
 
 # Phone number settings
 PHONENUMBER_DEFAULT_REGION = 'UG'
+
+# Email settings (development - prints to console)
+EMAIL_BACKEND = 'django.core.mail.backends.console.EmailBackend'
