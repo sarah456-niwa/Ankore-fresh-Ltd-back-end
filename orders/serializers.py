@@ -1,5 +1,5 @@
 from rest_framework import serializers
-from .models import Order, OrderItem, OrderTracking
+from .models import Order, OrderItem, OrderTracking, OrderNotification
 from products.serializers import ProductSerializer
 
 class OrderItemSerializer(serializers.ModelSerializer):
@@ -17,6 +17,14 @@ class OrderTrackingSerializer(serializers.ModelSerializer):
         model = OrderTracking
         fields = ['id', 'status', 'status_display', 'location', 'notes', 'created_at']
 
+class OrderNotificationSerializer(serializers.ModelSerializer):
+    order_number = serializers.CharField(source='order.order_number', read_only=True)
+    customer_name = serializers.CharField(source='order.customer_name', read_only=True)
+    
+    class Meta:
+        model = OrderNotification
+        fields = ['id', 'order', 'order_number', 'customer_name', 'is_read', 'read_at', 'created_at']
+
 class OrderSerializer(serializers.ModelSerializer):
     items = OrderItemSerializer(many=True, read_only=True)
     tracking_history = OrderTrackingSerializer(many=True, read_only=True)
@@ -27,35 +35,36 @@ class OrderSerializer(serializers.ModelSerializer):
     
     class Meta:
         model = Order
-        fields = [
-            'id', 'order_number', 'status', 'status_display', 'payment_status',
-            'payment_status_display', 'payment_method', 'payment_method_display',
-            'delivery_address', 'delivery_phone', 'delivery_instructions',
-            'delivery_date', 'delivery_time_slot', 'pickup_location',
-            'current_location', 'location_lat', 'location_lng',
-            'subtotal', 'delivery_fee', 'service_fee', 'discount', 'tax', 'total',
-            'tracking_number', 'delivery_agent', 'estimated_delivery', 'actual_delivery',
-            'notes', 'customer_rating', 'customer_feedback', 'can_cancel',
-            'items', 'tracking_history', 'created_at', 'updated_at'
-        ]
-        read_only_fields = ['order_number', 'created_at', 'updated_at']
+        fields = '__all__'
 
 class OrderCreateSerializer(serializers.Serializer):
-    cart_id = serializers.IntegerField(required=False)
-    delivery_address = serializers.CharField()
-    delivery_phone = serializers.CharField()
-    delivery_instructions = serializers.CharField(required=False, allow_blank=True)
-    delivery_date = serializers.DateTimeField(required=False)
-    delivery_time_slot = serializers.CharField(required=False, allow_blank=True)
-    payment_method = serializers.ChoiceField(choices=Order.PAYMENT_METHOD_CHOICES)
-    notes = serializers.CharField(required=False, allow_blank=True)
+    # Customer details
+    customer_name = serializers.CharField(required=False, allow_blank=True, allow_null=True)
+    customer_email = serializers.EmailField(required=False, allow_null=True)
+    customer_phone = serializers.CharField(required=False, allow_blank=True, allow_null=True)
     
-    def validate_delivery_phone(self, value):
-        import re
-        ug_phone_pattern = r'^(\+256|0)[0-9]{9}$'
-        if not re.match(ug_phone_pattern, value):
-            raise serializers.ValidationError("Enter a valid Ugandan phone number")
-        return value
+    # Delivery details
+    delivery_address = serializers.CharField(required=False, allow_blank=True, allow_null=True)
+    delivery_phone = serializers.CharField(required=False, allow_blank=True, allow_null=True)
+    delivery_instructions = serializers.CharField(required=False, allow_blank=True, allow_null=True)
+    payment_method = serializers.CharField(required=False, allow_blank=True, allow_null=True)
+    notes = serializers.CharField(required=False, allow_blank=True, allow_null=True)
+    
+    # Cart items
+    items = serializers.ListField(required=False, child=serializers.DictField())
+    
+    # Optional fields from Flutter
+    subtotal = serializers.DecimalField(max_digits=10, decimal_places=0, required=False, allow_null=True)
+    delivery_fee = serializers.DecimalField(max_digits=10, decimal_places=0, required=False, allow_null=True)
+    service_fee = serializers.DecimalField(max_digits=10, decimal_places=0, required=False, allow_null=True)
+    tax = serializers.DecimalField(max_digits=10, decimal_places=0, required=False, allow_null=True)
+    total = serializers.DecimalField(max_digits=10, decimal_places=0, required=False, allow_null=True)
+    
+    def validate_payment_method(self, value):
+        if not value:
+            return 'cash'
+        valid_methods = ['cash', 'momo', 'airtel', 'card']
+        return value.lower() if value.lower() in valid_methods else 'cash'
 
 class OrderStatusUpdateSerializer(serializers.Serializer):
     status = serializers.ChoiceField(choices=Order.STATUS_CHOICES)

@@ -2,6 +2,7 @@ from django.db import models
 from django.conf import settings
 from phonenumber_field.modelfields import PhoneNumberField
 import random
+from decimal import Decimal
 
 class Order(models.Model):
     STATUS_CHOICES = (
@@ -35,12 +36,18 @@ class Order(models.Model):
     payment_status = models.CharField(max_length=20, choices=PAYMENT_STATUS_CHOICES, default='pending')
     payment_method = models.CharField(max_length=20, choices=PAYMENT_METHOD_CHOICES, default='cash')
     
+    # Customer details
+    customer_name = models.CharField(max_length=255, blank=True, null=True)
+    customer_email = models.EmailField(blank=True, null=True)
+    customer_phone = models.CharField(max_length=20, blank=True, null=True)
+    
     # Delivery info
     delivery_address = models.TextField()
     delivery_phone = PhoneNumberField(region='UG')
     delivery_instructions = models.TextField(blank=True)
     delivery_date = models.DateTimeField(null=True, blank=True)
     delivery_time_slot = models.CharField(max_length=50, blank=True)
+    pickup_location = models.CharField(max_length=255, blank=True)
     
     # Location tracking
     current_location = models.CharField(max_length=255, blank=True)
@@ -69,6 +76,16 @@ class Order(models.Model):
     customer_rating = models.PositiveSmallIntegerField(null=True, blank=True)
     customer_feedback = models.TextField(blank=True)
     
+    # Notification tracking
+    email_notification_sent = models.BooleanField(default=False)
+    sms_notification_sent = models.BooleanField(default=False)
+    email_notification_sent_at = models.DateTimeField(blank=True, null=True)
+    sms_notification_sent_at = models.DateTimeField(blank=True, null=True)
+    
+    # Admin notification tracking
+    is_admin_notified = models.BooleanField(default=False)
+    admin_notification_sent_at = models.DateTimeField(null=True, blank=True)
+    
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)
     
@@ -77,6 +94,19 @@ class Order(models.Model):
     
     def __str__(self):
         return f"Order #{self.order_number}"
+    
+    @property
+    def can_cancel(self):
+        return self.status in ['pending', 'confirmed']
+    
+    def get_status_display(self):
+        return dict(self.STATUS_CHOICES).get(self.status, self.status)
+    
+    def get_payment_status_display(self):
+        return dict(self.PAYMENT_STATUS_CHOICES).get(self.payment_status, self.payment_status)
+    
+    def get_payment_method_display(self):
+        return dict(self.PAYMENT_METHOD_CHOICES).get(self.payment_method, self.payment_method)
     
     def save(self, *args, **kwargs):
         if not self.order_number:
@@ -112,3 +142,20 @@ class OrderTracking(models.Model):
     
     def __str__(self):
         return f"{self.order.order_number} - {self.status}"
+    
+    def get_status_display(self):
+        return dict(Order.STATUS_CHOICES).get(self.status, self.status)
+
+class OrderNotification(models.Model):
+    order = models.ForeignKey(Order, on_delete=models.CASCADE, related_name='admin_notifications')
+    is_read = models.BooleanField(default=False)
+    read_at = models.DateTimeField(null=True, blank=True)
+    created_at = models.DateTimeField(auto_now_add=True)
+    
+    class Meta:
+        ordering = ['-created_at']
+        verbose_name = 'Order Notification'
+        verbose_name_plural = 'Order Notifications'
+    
+    def __str__(self):
+        return f"Notification for {self.order.order_number}"

@@ -102,17 +102,44 @@ MEDIA_ROOT = BASE_DIR / 'media'
 
 DEFAULT_AUTO_FIELD = 'django.db.models.BigAutoField'
 
-# CORS settings
+# ========== CORS SETTINGS ==========
 CORS_ALLOW_ALL_ORIGINS = True
 CORS_ALLOWED_ORIGINS = [
     "http://localhost:3000",
-    "http://10.0.2.2:8000",
+    "http://localhost:8080",
     "http://127.0.0.1:8000",
+    "http://10.0.2.2:8000",
+    "http://192.168.1.11:8000",  # Your current IP
+    "http://192.168.1.172:8000",  # Previous IP
 ]
 
-# REST Framework
+CORS_ALLOW_CREDENTIALS = True
+CORS_ALLOW_METHODS = [
+    'DELETE',
+    'GET',
+    'OPTIONS',
+    'PATCH',
+    'POST',
+    'PUT',
+]
+
+CORS_ALLOW_HEADERS = [
+    'accept',
+    'accept-encoding',
+    'authorization',
+    'content-type',
+    'dnt',
+    'origin',
+    'user-agent',
+    'x-csrftoken',
+    'x-requested-with',
+]
+
+# ========== REST FRAMEWORK SETTINGS ==========
 REST_FRAMEWORK = {
     'DEFAULT_AUTHENTICATION_CLASSES': (
+        'rest_framework.authentication.SessionAuthentication',  # Added this - Option 1
+        'rest_framework.authentication.BasicAuthentication',
         'rest_framework_simplejwt.authentication.JWTAuthentication',
     ),
     'DEFAULT_PERMISSION_CLASSES': [
@@ -126,7 +153,7 @@ REST_FRAMEWORK = {
     'PAGE_SIZE': 20,
 }
 
-# JWT Settings
+# ========== JWT SETTINGS ==========
 SIMPLE_JWT = {
     'ACCESS_TOKEN_LIFETIME': timedelta(days=1),
     'REFRESH_TOKEN_LIFETIME': timedelta(days=7),
@@ -137,14 +164,59 @@ SIMPLE_JWT = {
     'USER_ID_CLAIM': 'user_id',
 }
 
+# ========== API DOCUMENTATION ==========
 SPECTACULAR_SETTINGS = {
     'TITLE': 'Ankore Fresh API',
     'DESCRIPTION': 'API for Ankore Fresh LTD E-commerce Platform',
     'VERSION': '1.0.0',
+    'SERVE_INCLUDE_SCHEMA': False,
 }
 
-# Phone number settings
+# ========== PHONE NUMBER SETTINGS ==========
 PHONENUMBER_DEFAULT_REGION = 'UG'
 
-# Email settings (development - prints to console)
+# ========== EMAIL SETTINGS FOR NOTIFICATIONS ==========
+# Option 1: For development - print emails to console (currently using this)
 EMAIL_BACKEND = 'django.core.mail.backends.console.EmailBackend'
+
+# Option 2: For production with Gmail (uncomment to use)
+# EMAIL_BACKEND = 'django.core.mail.backends.smtp.EmailBackend'
+# EMAIL_HOST = 'smtp.gmail.com'
+# EMAIL_PORT = 587
+# EMAIL_USE_TLS = True
+# EMAIL_HOST_USER = os.getenv('EMAIL_HOST_USER', 'your_email@gmail.com')
+# EMAIL_HOST_PASSWORD = os.getenv('EMAIL_HOST_PASSWORD', 'your_app_password')
+# DEFAULT_FROM_EMAIL = EMAIL_HOST_USER
+
+# Option 3: For production with custom domain
+# EMAIL_BACKEND = 'django.core.mail.backends.smtp.EmailBackend'
+# EMAIL_HOST = os.getenv('EMAIL_HOST', 'smtp.yourdomain.com')
+# EMAIL_PORT = int(os.getenv('EMAIL_PORT', 587))
+# EMAIL_USE_TLS = True
+# EMAIL_HOST_USER = os.getenv('EMAIL_HOST_USER')
+# EMAIL_HOST_PASSWORD = os.getenv('EMAIL_HOST_PASSWORD')
+# DEFAULT_FROM_EMAIL = f"Ankore Fresh <{EMAIL_HOST_USER}>"
+
+# ========== SITE URL FOR EMAIL LINKS ==========
+# Update this with your current IP address
+SITE_URL = os.getenv('SITE_URL', 'http://192.168.1.11:8000')
+
+# ========== ADMIN EMAIL NOTIFICATIONS ==========
+# List of admin emails to receive order notifications
+ADMIN_EMAILS = os.getenv('ADMIN_EMAILS', 'admin@ankorefresh.com').split(',')
+
+# ========== ADDITIONAL SETTINGS ==========
+# Maximum delivery distance in KM
+MAX_DELIVERY_DISTANCE_KM = 20
+
+# Default delivery fee
+DEFAULT_DELIVERY_FEE = 5000
+
+# Minimum order amount for free delivery (UGX)
+FREE_DELIVERY_MIN_AMOUNT = 100000
+
+# Service fee percentage (2%)
+SERVICE_FEE_PERCENTAGE = 2
+
+# Tax percentage (5%)
+TAX_PERCENTAGE = 5

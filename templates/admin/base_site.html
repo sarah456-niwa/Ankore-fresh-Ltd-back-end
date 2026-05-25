@@ -1,0 +1,313 @@
+<!-- templates/admin/base_site.html -->
+{% extends "admin/base.html" %}
+{% load static %}
+
+{% block extrahead %}
+{{ block.super }}
+<script src="https://code.jquery.com/jquery-3.6.0.min.js"></script>
+<style>
+    .notification-badge {
+        position: absolute;
+        top: -8px;
+        right: -8px;
+        background-color: #dc3545;
+        color: white;
+        border-radius: 50%;
+        padding: 2px 6px;
+        font-size: 10px;
+        font-weight: bold;
+        min-width: 18px;
+        text-align: center;
+    }
+    
+    .notification-icon {
+        position: relative;
+        display: inline-block;
+        margin-right: 15px;
+    }
+    
+    .notification-dropdown {
+        display: none;
+        position: absolute;
+        right: 0;
+        top: 30px;
+        width: 350px;
+        max-height: 450px;
+        overflow-y: auto;
+        background-color: white;
+        border: 1px solid #ddd;
+        border-radius: 4px;
+        box-shadow: 0 2px 10px rgba(0,0,0,0.1);
+        z-index: 1000;
+    }
+    
+    .notification-dropdown.show {
+        display: block;
+    }
+    
+    .notification-item {
+        padding: 12px;
+        border-bottom: 1px solid #eee;
+        cursor: pointer;
+        transition: background-color 0.2s;
+    }
+    
+    .notification-item:hover {
+        background-color: #f5f5f5;
+    }
+    
+    .notification-item.unread {
+        background-color: #fff3cd;
+        border-left: 3px solid #ffc107;
+    }
+    
+    .notification-item .title {
+        font-weight: bold;
+        font-size: 14px;
+        margin-bottom: 4px;
+    }
+    
+    .notification-item .customer-info {
+        font-size: 11px;
+        color: #666;
+        margin-bottom: 4px;
+    }
+    
+    .notification-item .message {
+        font-size: 12px;
+        color: #666;
+        margin-bottom: 4px;
+    }
+    
+    .notification-item .time {
+        font-size: 10px;
+        color: #999;
+    }
+    
+    .notification-header {
+        padding: 10px;
+        background-color: #f8f9fa;
+        border-bottom: 1px solid #dee2e6;
+        font-weight: bold;
+    }
+    
+    .notification-footer {
+        padding: 10px;
+        text-align: center;
+        border-top: 1px solid #dee2e6;
+    }
+    
+    .toast-notification {
+        position: fixed;
+        top: 20px;
+        right: 20px;
+        z-index: 9999;
+        min-width: 300px;
+        animation: slideIn 0.3s ease;
+        background-color: #28a745;
+        color: white;
+        padding: 12px 20px;
+        border-radius: 8px;
+        box-shadow: 0 4px 12px rgba(0,0,0,0.15);
+        cursor: pointer;
+    }
+    
+    @keyframes slideIn {
+        from {
+            transform: translateX(100%);
+            opacity: 0;
+        }
+        to {
+            transform: translateX(0);
+            opacity: 1;
+        }
+    }
+    
+    /* Order status colors in admin list */
+    .status-pending { color: #ff9800; font-weight: bold; }
+    .status-confirmed { color: #2196f3; font-weight: bold; }
+    .status-processing { color: #9c27b0; font-weight: bold; }
+    .status-shipped { color: #00bcd4; font-weight: bold; }
+    .status-out_for_delivery { color: #ff5722; font-weight: bold; }
+    .status-delivered { color: #4caf50; font-weight: bold; }
+    .status-cancelled { color: #f44336; font-weight: bold; }
+</style>
+{% endblock %}
+
+{% block branding %}
+<h1 id="site-name"><a href="{% url 'admin:index' %}">Ankore Fresh Admin</a></h1>
+{% endblock %}
+
+{% block nav-global %}
+<div style="float: right; display: flex; align-items: center; margin-right: 20px;">
+    <div class="notification-icon" id="notificationIcon">
+        <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+            <path d="M18 8A6 6 0 0 0 6 8c0 7-3 9-3 9h18s-3-2-3-9" />
+            <path d="M13.73 21a2 2 0 0 1-3.46 0" />
+        </svg>
+        <span id="notificationCount" class="notification-badge" style="display: none;">0</span>
+        <div id="notificationDropdown" class="notification-dropdown">
+            <div class="notification-header">
+                <strong>Notifications</strong>
+                <button id="markAllRead" style="float: right; background: none; border: none; color: #007bff; cursor: pointer;">Mark all as read</button>
+            </div>
+            <div id="notificationList">
+                <div style="padding: 20px; text-align: center;">Loading...</div>
+            </div>
+            <div class="notification-footer">
+                <a href="/admin/orders/order/">View all orders</a>
+            </div>
+        </div>
+    </div>
+</div>
+
+<script>
+    let notificationCheckInterval = null;
+    let lastNotificationCount = 0;
+    
+    function fetchNotifications() {
+        fetch('/api/orders/admin/notifications/')
+            .then(response => response.json())
+            .then(data => {
+                const count = data.count || 0;
+                const notifications = data.notifications || [];
+                
+                // Update badge
+                const badge = document.getElementById('notificationCount');
+                if (count > 0) {
+                    badge.style.display = 'inline-block';
+                    badge.textContent = count > 99 ? '99+' : count;
+                    
+                    // Show toast for new notifications
+                    if (count > lastNotificationCount) {
+                        showNotificationToast(`${count - lastNotificationCount} new order(s) received!`);
+                    }
+                    lastNotificationCount = count;
+                } else {
+                    badge.style.display = 'none';
+                }
+                
+                // Update dropdown list
+                const listContainer = document.getElementById('notificationList');
+                if (notifications.length === 0) {
+                    listContainer.innerHTML = '<div style="padding: 20px; text-align: center;">No new notifications</div>';
+                    return;
+                }
+                
+                let html = '';
+                notifications.forEach(notif => {
+                    const time = new Date(notif.created_at).toLocaleString();
+                    html += `
+                        <div class="notification-item unread" data-id="${notif.id}" onclick="markAsRead(${notif.id})">
+                            <div class="title">🛍️ New Order #${notif.order_number}</div>
+                            <div class="customer-info">👤 ${notif.customer_name || 'Customer'}</div>
+                            <div class="time">📅 ${time}</div>
+                        </div>
+                    `;
+                });
+                listContainer.innerHTML = html;
+            })
+            .catch(error => console.error('Error fetching notifications:', error));
+    }
+    
+    function markAsRead(notificationId) {
+        fetch(`/api/orders/admin/notifications/${notificationId}/read/`, {
+            method: 'POST',
+            headers: {
+                'X-CSRFToken': getCookie('csrftoken'),
+                'Content-Type': 'application/json'
+            }
+        })
+        .then(response => response.json())
+        .then(() => {
+            fetchNotifications();
+        });
+    }
+    
+    function markAllAsRead() {
+        fetch(`/api/orders/admin/notifications/read-all/`, {
+            method: 'POST',
+            headers: {
+                'X-CSRFToken': getCookie('csrftoken'),
+                'Content-Type': 'application/json'
+            }
+        })
+        .then(() => {
+            fetchNotifications();
+        });
+    }
+    
+    function showNotificationToast(message) {
+        // Remove existing toast
+        const existingToast = document.querySelector('.toast-notification');
+        if (existingToast) existingToast.remove();
+        
+        // Create toast
+        const toast = document.createElement('div');
+        toast.className = 'toast-notification';
+        toast.innerHTML = `
+            <div style="display: flex; align-items: center; gap: 10px;">
+                <span style="font-size: 20px;">🔔</span>
+                <div>
+                    <div style="font-weight: bold;">New Order Alert!</div>
+                    <div style="font-size: 12px;">${message}</div>
+                </div>
+            </div>
+        `;
+        toast.onclick = () => {
+            document.getElementById('notificationIcon').click();
+            toast.remove();
+        };
+        
+        document.body.appendChild(toast);
+        
+        // Auto remove after 5 seconds
+        setTimeout(() => {
+            if (toast.parentNode) toast.remove();
+        }, 5000);
+    }
+    
+    function getCookie(name) {
+        let cookieValue = null;
+        if (document.cookie && document.cookie !== '') {
+            const cookies = document.cookie.split(';');
+            for (let i = 0; i < cookies.length; i++) {
+                const cookie = cookies[i].trim();
+                if (cookie.substring(0, name.length + 1) === (name + '=')) {
+                    cookieValue = decodeURIComponent(cookie.substring(name.length + 1));
+                    break;
+                }
+            }
+        }
+        return cookieValue;
+    }
+    
+    // Toggle dropdown
+    const notificationIcon = document.getElementById('notificationIcon');
+    if (notificationIcon) {
+        notificationIcon.onclick = (e) => {
+            e.stopPropagation();
+            const dropdown = document.getElementById('notificationDropdown');
+            dropdown.classList.toggle('show');
+        };
+    }
+    
+    // Close dropdown when clicking outside
+    document.addEventListener('click', () => {
+        const dropdown = document.getElementById('notificationDropdown');
+        if (dropdown) dropdown.classList.remove('show');
+    });
+    
+    const markAllReadBtn = document.getElementById('markAllRead');
+    if (markAllReadBtn) {
+        markAllReadBtn.onclick = (e) => {
+            e.stopPropagation();
+            markAllAsRead();
+        };
+    }
+    
+    // Start polling for notifications every 10 seconds
+    fetchNotifications();
+    notificationCheckInterval = setInterval(fetchNotifications, 10000);
+</script>
+{% endblock %}
