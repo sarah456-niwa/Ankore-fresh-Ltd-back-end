@@ -14,11 +14,11 @@ urlpatterns = [
     # USER NOTIFICATION ENDPOINTS (for Flutter app)
     path('notifications/', views.UserNotificationsView.as_view(), name='user-notifications'),
     path('notifications/unread/count/', views.UnreadNotificationCountView.as_view(), name='unread-count'),
-    path('notifications/<int:notification_id>/read/', views.MarkNotificationReadView.as_view(), name='mark-notification-read'),
+    path('notifications/<int:notification_id>/read/', views.UserMarkNotificationReadView.as_view(), name='mark-notification-read'),
     
     # ADMIN NOTIFICATION ENDPOINTS (for Django admin)
     path('admin/notifications/', views.AdminOrderNotificationsView.as_view(), name='admin-notifications'),
     path('admin/notifications/count/', views.GetUnreadNotificationCountView.as_view(), name='admin-notifications-count'),
-    path('admin/notifications/<int:notification_id>/read/', views.MarkNotificationReadView.as_view(), name='mark-notification-read'),
+    path('admin/notifications/<int:notification_id>/read/', views.AdminMarkNotificationReadView.as_view(), name='admin-mark-notification-read'),
     path('admin/notifications/read-all/', views.MarkAllNotificationsReadView.as_view(), name='mark-all-read'),
 ]

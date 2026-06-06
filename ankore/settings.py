@@ -14,6 +14,7 @@ DEBUG = True
 ALLOWED_HOSTS = ['*']
 
 INSTALLED_APPS = [
+    'daphne',  # Must be first for Channels
     'django.contrib.admin',
     'django.contrib.auth',
     'django.contrib.contenttypes',
@@ -28,6 +29,7 @@ INSTALLED_APPS = [
     'drf_spectacular',
     'django_filters',
     'phonenumber_field',
+    'channels',
     
     # Local apps
     'users',
@@ -54,7 +56,7 @@ ROOT_URLCONF = 'ankore.urls'
 TEMPLATES = [
     {
         'BACKEND': 'django.template.backends.django.DjangoTemplates',
-        'DIRS': [],
+        'DIRS': [BASE_DIR / 'templates'],
         'APP_DIRS': True,
         'OPTIONS': {
             'context_processors': [
@@ -68,6 +70,7 @@ TEMPLATES = [
 ]
 
 WSGI_APPLICATION = 'ankore.wsgi.application'
+ASGI_APPLICATION = 'ankore.asgi.application'
 
 # ========== DATABASE CONFIGURATION - PostgreSQL ==========
 DATABASES = {
@@ -220,3 +223,15 @@ SERVICE_FEE_PERCENTAGE = 2
 
 # Tax percentage (5%)
 TAX_PERCENTAGE = 5
+
+# ========== CHANNELS CONFIGURATION ==========
+CHANNEL_LAYERS = {
+    'default': {
+        'BACKEND': 'channels_redis.core.RedisChannelLayer',
+        'CONFIG': {
+            'hosts': [('127.0.0.1', 6379)],
+            'capacity': 1500,
+            'expiry': 10,
+        },
+    },
+}

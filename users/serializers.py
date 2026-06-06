@@ -7,6 +7,15 @@ class UserRegistrationSerializer(serializers.ModelSerializer):
     password = serializers.CharField(write_only=True, min_length=6)
     password2 = serializers.CharField(write_only=True, min_length=6)
     user_type = serializers.ChoiceField(choices=User.USER_TYPE_CHOICES, default='immediate')
+    username = serializers.CharField(required=False, allow_blank=True)
+    first_name = serializers.CharField(required=False, allow_blank=True)
+    last_name = serializers.CharField(required=False, allow_blank=True)
+    phone = serializers.CharField(required=False, allow_blank=True)
+    store_name = serializers.CharField(required=False, allow_blank=True)
+    business_address = serializers.CharField(required=False, allow_blank=True)
+    tax_id = serializers.CharField(required=False, allow_blank=True)
+    location = serializers.CharField(required=False, allow_blank=True)
+    date_of_birth = serializers.DateField(required=False, allow_null=True)
     
     class Meta:
         model = User
@@ -19,6 +28,12 @@ class UserRegistrationSerializer(serializers.ModelSerializer):
     def validate(self, data):
         if data['password'] != data['password2']:
             raise serializers.ValidationError({"password": "Passwords do not match"})
+        
+        user_type = data.get('user_type', 'immediate')
+        
+        # Only require store_name for bulk sellers
+        if user_type == 'bulk' and not data.get('store_name', '').strip():
+            raise serializers.ValidationError({"store_name": "Store name is required for bulk sellers"})
         
         if not data.get('username'):
             data['username'] = data['email'].split('@')[0]
@@ -35,15 +50,14 @@ class UserRegistrationSerializer(serializers.ModelSerializer):
             raise serializers.ValidationError("Email already exists")
         return value
     
-    def validate_user_type(self, value):
-        if value == 'bulk' and not self.initial_data.get('store_name'):
-            raise serializers.ValidationError("Store name required for bulk sellers")
-        return value
-    
     def create(self, validated_data):
         validated_data.pop('password2')
         user_type = validated_data.pop('user_type')
         password = validated_data.pop('password')
+        
+        # Remove empty string values and keep only non-empty values
+        validated_data = {k: v for k, v in validated_data.items() if v and (isinstance(v, bool) or str(v).strip())}
+        
         user = User.objects.create_user(password=password, user_type=user_type, **validated_data)
         if user_type == 'bulk':
             user.is_verified_seller = False

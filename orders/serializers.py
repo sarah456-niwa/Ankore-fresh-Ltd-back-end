@@ -12,10 +12,11 @@ class OrderItemSerializer(serializers.ModelSerializer):
 
 class OrderTrackingSerializer(serializers.ModelSerializer):
     status_display = serializers.CharField(source='get_status_display', read_only=True)
+    timestamp = serializers.DateTimeField(source='created_at', read_only=True)
     
     class Meta:
         model = OrderTracking
-        fields = ['id', 'status', 'status_display', 'location', 'notes', 'created_at']
+        fields = ['id', 'status', 'status_display', 'location', 'notes', 'created_at', 'timestamp']
 
 class OrderNotificationSerializer(serializers.ModelSerializer):
     order_number = serializers.CharField(source='order.order_number', read_only=True)

@@ -4,6 +4,8 @@ from django.urls import reverse
 from django.utils.html import format_html
 from django.utils import timezone
 from .models import Order, OrderItem, OrderTracking
+from .serializers import OrderSerializer
+from .websocket_utils import send_order_update_websocket
 
 class OrderItemInline(admin.TabularInline):
     model = OrderItem
@@ -38,7 +40,7 @@ class OrderAdmin(admin.ModelAdmin):
             'fields': ('order_number', 'user', 'customer_name', 'customer_email', 'customer_phone', 'status', 'payment_status', 'payment_method')
         }),
         ('Delivery Information', {
-            'fields': ('delivery_address', 'delivery_phone', 'delivery_instructions', 'delivery_date', 'delivery_time_slot')
+            'fields': ('delivery_address', 'delivery_phone', 'delivery_instructions', 'notes', 'delivery_date', 'delivery_time_slot')
         }),
         ('Tracking', {
             'fields': ('tracking_number', 'delivery_agent', 'estimated_delivery', 'actual_delivery', 'current_location')
@@ -51,7 +53,7 @@ class OrderAdmin(admin.ModelAdmin):
             'classes': ('collapse',)
         }),
         ('Feedback', {
-            'fields': ('customer_rating', 'customer_feedback', 'notes'),
+            'fields': ('customer_rating', 'customer_feedback'),
             'classes': ('collapse',)
         }),
         ('Timestamps', {
@@ -168,6 +170,7 @@ class OrderAdmin(admin.ModelAdmin):
         """Trigger notification when status changes via admin action"""
         from django.core.mail import send_mail
         from django.conf import settings
+        from notifications.models import Notification as UserNotification
         
         # Create tracking entry
         OrderTracking.objects.create(
@@ -175,6 +178,19 @@ class OrderAdmin(admin.ModelAdmin):
             status=new_status,
             notes=f"Status updated to {order.get_status_display()} by admin"
         )
+        
+        # Create in-app notification for the user
+        UserNotification.objects.create(
+            user=order.user,
+            title=f"Order {new_status.replace('_', ' ').title()}",
+            message=f"Your order #{order.order_number} status has been updated to: {order.get_status_display()}",
+            notification_type='delivery',
+            data={'order_id': order.id, 'status': new_status}
+        )
+        
+        # Send WebSocket update to all connected clients
+        serializer = OrderSerializer(order)
+        send_order_update_websocket(order.order_number, serializer.data)
         
         # Send email notification to customer
         if order.customer_email:
@@ -219,6 +235,20 @@ Thank you for shopping with Ankore Fresh!
                     status=obj.status,
                     notes=f"Status updated from {original.get_status_display()} to {obj.get_status_display()} by admin"
                 )
+                
+                # Create in-app notification for the user
+                from notifications.models import Notification as UserNotification
+                UserNotification.objects.create(
+                    user=obj.user,
+                    title=f"Order {obj.status.replace('_', ' ').title()}",
+                    message=f"Your order #{obj.order_number} status has been updated to: {obj.get_status_display()}",
+                    notification_type='delivery',
+                    data={'order_id': obj.id, 'status': obj.status}
+                )
+                
+                # Send WebSocket update to all connected clients
+                serializer = OrderSerializer(obj)
+                send_order_update_websocket(obj.order_number, serializer.data)
         super().save_model(request, obj, form, change)
 
 @admin.register(OrderItem)

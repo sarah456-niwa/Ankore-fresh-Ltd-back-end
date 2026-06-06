@@ -7,13 +7,17 @@ from datetime import timedelta
 from django.db.models import Count, Sum
 from django.contrib.auth import get_user_model
 
-# Import the custom UserAdmin
+# Import the custom ModelAdmins and Models
 from users.admin import CustomUserAdmin
 from users.models import User
 from products.models import Category, Product
+from products.admin import CategoryAdmin, ProductAdmin
 from cart.models import Cart, CartItem
+from cart.admin import CartAdmin, CartItemAdmin
 from orders.models import Order, OrderItem, OrderTracking
+from orders.admin import OrderAdmin, OrderItemAdmin, OrderTrackingAdmin
 from notifications.models import Notification
+from notifications.admin import NotificationAdmin
 
 User = get_user_model()
 
@@ -102,13 +106,13 @@ class AnkoreAdminSite(AdminSite):
 # Create the custom admin site
 admin_site = AnkoreAdminSite(name='ankore_admin')
 
-# Register all models with the custom admin site
+# Register all models with their custom ModelAdmins on the custom admin site
 admin_site.register(User, CustomUserAdmin)
-admin_site.register(Category)
-admin_site.register(Product)
-admin_site.register(Cart)
-admin_site.register(CartItem)
-admin_site.register(Order)
-admin_site.register(OrderItem)
-admin_site.register(OrderTracking)
-admin_site.register(Notification)
+admin_site.register(Category, CategoryAdmin)
+admin_site.register(Product, ProductAdmin)
+admin_site.register(Cart, CartAdmin)
+admin_site.register(CartItem, CartItemAdmin)
+admin_site.register(Order, OrderAdmin)
+admin_site.register(OrderItem, OrderItemAdmin)
+admin_site.register(OrderTracking, OrderTrackingAdmin)
+admin_site.register(Notification, NotificationAdmin)

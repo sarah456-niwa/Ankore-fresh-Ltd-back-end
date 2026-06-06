@@ -11,6 +11,7 @@ from decimal import Decimal
 from cart.models import Cart, CartItem
 from .models import Order, OrderItem, OrderTracking, OrderNotification
 from .serializers import OrderSerializer, OrderCreateSerializer, OrderStatusUpdateSerializer, OrderNotificationSerializer
+from .websocket_utils import send_order_update_websocket, send_admin_notification_websocket
 from notifications.models import Notification
 
 
@@ -362,7 +363,7 @@ class OrderTrackingStatusView(APIView):
 
 @method_decorator(csrf_exempt, name='dispatch')
 class OrderCancelView(APIView):
-    """Cancel order"""
+    """Cancel order and notify admin"""
     permission_classes = [permissions.IsAuthenticated]
     
     def post(self, request, order_id):
@@ -387,7 +388,25 @@ class OrderCancelView(APIView):
             notes=request.data.get('reason', 'Cancelled by user')
         )
         
-        return Response({'message': 'Order cancelled successfully'})
+        # Create admin notification
+        admin_notification = OrderNotification.objects.create(order=order)
+        
+        # Send WebSocket notification to admins
+        send_admin_notification_websocket(
+            order_id=order.id,
+            notification_id=admin_notification.id,
+            message=f"Order {order.order_number} has been cancelled by customer {order.customer_name or 'Unknown'}",
+            notification_type='order_cancelled'
+        )
+        
+        # Send WebSocket update to customer
+        serializer = OrderSerializer(order)
+        send_order_update_websocket(order.order_number, serializer.data)
+        
+        return Response({
+            'message': 'Order cancelled successfully',
+            'order': serializer.data
+        }, status=status.HTTP_200_OK)
 
 
 @method_decorator(csrf_exempt, name='dispatch')
@@ -569,34 +588,11 @@ class OrderTrackingView(APIView):
     
     def get(self, request, order_number):
         try:
-            order = Order.objects.get(order_number=order_number)
+            order = Order.objects.prefetch_related('items', 'tracking_history').get(order_number=order_number)
         except Order.DoesNotExist:
             return Response({'error': 'Order not found'}, status=status.HTTP_404_NOT_FOUND)
         
-        tracking = OrderTracking.objects.filter(order=order)
-        
-        return Response({
-            'order_number': order.order_number,
-            'status': order.status,
-            'status_display': order.get_status_display(),
-            'tracking_number': order.tracking_number,
-            'estimated_delivery': order.estimated_delivery,
-            'current_location': order.current_location,
-            'delivery_address': order.delivery_address,
-            'delivery_phone': str(order.delivery_phone),
-            'customer_name': order.customer_name,
-            'customer_email': order.customer_email,
-            'customer_phone': order.customer_phone,
-            'tracking_history': [
-                {
-                    'status': t.get_status_display(),
-                    'location': t.location,
-                    'notes': t.notes,
-                    'timestamp': t.created_at
-                }
-                for t in tracking
-            ]
-        })
+        return Response(OrderSerializer(order).data)
 
 
 # ========== USER NOTIFICATION ENDPOINTS (for Flutter app) ==========
@@ -652,7 +648,7 @@ class UnreadNotificationCountView(APIView):
 
 
 @method_decorator(csrf_exempt, name='dispatch')
-class MarkNotificationReadView(APIView):
+class UserMarkNotificationReadView(APIView):
     """Mark a notification as read"""
     permission_classes = [permissions.IsAuthenticated]
     
@@ -698,7 +694,7 @@ class GetUnreadNotificationCountView(APIView):
 
 
 @method_decorator(csrf_exempt, name='dispatch')
-class MarkNotificationReadView(APIView):
+class AdminMarkNotificationReadView(APIView):
     """Mark a single notification as read (admin)"""
     permission_classes = [permissions.IsAuthenticated]
     
