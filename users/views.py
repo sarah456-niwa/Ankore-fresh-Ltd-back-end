@@ -7,6 +7,11 @@ from django.views.decorators.csrf import csrf_exempt
 from django.utils.decorators import method_decorator
 from .serializers import UserRegistrationSerializer, UserLoginSerializer, UserDetailSerializer
 from .models import User
+from .models import PasswordResetCode
+from .utils import send_sms
+from django.utils import timezone
+from datetime import timedelta
+import random
 
 class RegistrationView(generics.CreateAPIView):
     serializer_class = UserRegistrationSerializer
@@ -23,6 +28,15 @@ class RegistrationView(generics.CreateAPIView):
                 'access': str(refresh.access_token),
                 'message': 'Registration successful'
             }, status=status.HTTP_201_CREATED)
+        # Log serializer errors and the incoming payload to aid debugging of bad requests
+        try:
+            print(f"❌ Registration validation errors: {serializer.errors}")
+            try:
+                print(f"📥 Registration payload: {request.data}")
+            except Exception:
+                pass
+        except Exception:
+            pass
         return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
 
 class LoginView(APIView):
@@ -154,3 +168,74 @@ class SessionLogoutView(APIView):
             'success': True,
             'message': 'Logged out successfully'
         })
+
+
+class PasswordResetSMSRequestView(APIView):
+    """Send a password reset code via SMS to the user's phone number."""
+    permission_classes = [permissions.AllowAny]
+
+    def post(self, request):
+        identifier = request.data.get('email') or request.data.get('phone')
+        if not identifier:
+            return Response({'error': 'Email or phone is required'}, status=status.HTTP_400_BAD_REQUEST)
+
+        # Try to find user by email or phone
+        try:
+            if '@' in identifier:
+                user = User.objects.get(email=identifier)
+            else:
+                user = User.objects.get(phone=identifier)
+        except User.DoesNotExist:
+            return Response({'error': 'User not found'}, status=status.HTTP_404_NOT_FOUND)
+
+        if not user.phone:
+            return Response({'error': 'User has no phone number'}, status=status.HTTP_400_BAD_REQUEST)
+
+        # Generate 6-digit code
+        code = f"{random.randint(100000, 999999)}"
+        expires_at = timezone.now() + timedelta(minutes=15)
+
+        # Save code
+        PasswordResetCode.objects.create(user=user, code=code, expires_at=expires_at)
+
+        # Send SMS (prints in dev)
+        message = f"Your Ankore Fresh password reset code is: {code}. Expires in 15 minutes."
+        send_sms(str(user.phone), message)
+
+        return Response({'message': 'Reset code sent via SMS'}, status=status.HTTP_200_OK)
+
+
+class PasswordResetSMSConfirmView(APIView):
+    """Verify code and set new password."""
+    permission_classes = [permissions.AllowAny]
+
+    def post(self, request):
+        identifier = request.data.get('email') or request.data.get('phone')
+        code = request.data.get('code')
+        new_password = request.data.get('new_password')
+
+        if not identifier or not code or not new_password:
+            return Response({'error': 'email/phone, code and new_password are required'}, status=status.HTTP_400_BAD_REQUEST)
+
+        try:
+            if '@' in identifier:
+                user = User.objects.get(email=identifier)
+            else:
+                user = User.objects.get(phone=identifier)
+        except User.DoesNotExist:
+            return Response({'error': 'User not found'}, status=status.HTTP_404_NOT_FOUND)
+
+        # Find valid code
+        now = timezone.now()
+        try:
+            pr = PasswordResetCode.objects.filter(user=user, code=code, used=False, expires_at__gte=now).latest('created_at')
+        except PasswordResetCode.DoesNotExist:
+            return Response({'error': 'Invalid or expired code'}, status=status.HTTP_400_BAD_REQUEST)
+
+        # Set new password
+        user.set_password(new_password)
+        user.save()
+        pr.used = True
+        pr.save()
+
+        return Response({'message': 'Password reset successful'}, status=status.HTTP_200_OK)

@@ -5,7 +5,7 @@ from django.utils.html import format_html
 from django.utils import timezone
 from .models import Order, OrderItem, OrderTracking
 from .serializers import OrderSerializer
-from .websocket_utils import send_order_update_websocket
+from .websocket_utils import send_order_update_websocket, send_user_notification_websocket
 
 class OrderItemInline(admin.TabularInline):
     model = OrderItem
@@ -187,6 +187,13 @@ class OrderAdmin(admin.ModelAdmin):
             notification_type='delivery',
             data={'order_id': order.id, 'status': new_status}
         )
+        # Send in-app websocket notification to user to trigger UI badge
+        try:
+            latest = UserNotification.objects.filter(user=order.user).first()
+            if latest:
+                send_user_notification_websocket(order.user.id, latest.id, latest.message, notification_type='order_update')
+        except Exception:
+            pass
         
         # Send WebSocket update to all connected clients
         serializer = OrderSerializer(order)
@@ -245,6 +252,13 @@ Thank you for shopping with Ankore Fresh!
                     notification_type='delivery',
                     data={'order_id': obj.id, 'status': obj.status}
                 )
+                # Notify user via websocket badge
+                try:
+                    latest = UserNotification.objects.filter(user=obj.user).first()
+                    if latest:
+                        send_user_notification_websocket(obj.user.id, latest.id, latest.message, notification_type='order_update')
+                except Exception:
+                    pass
                 
                 # Send WebSocket update to all connected clients
                 serializer = OrderSerializer(obj)

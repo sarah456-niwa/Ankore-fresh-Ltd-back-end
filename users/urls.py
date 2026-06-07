@@ -14,4 +14,7 @@ urlpatterns = [
     path('mobile-login/', views.MobileLoginView.as_view(), name='mobile-login'),
     path('session-status/', views.SessionStatusView.as_view(), name='session-status'),
     path('session-logout/', views.SessionLogoutView.as_view(), name='session-logout'),
+    # Password reset via SMS
+    path('password-reset/sms/', views.PasswordResetSMSRequestView.as_view(), name='password-reset-sms'),
+    path('password-reset/sms/confirm/', views.PasswordResetSMSConfirmView.as_view(), name='password-reset-sms-confirm'),
 ]

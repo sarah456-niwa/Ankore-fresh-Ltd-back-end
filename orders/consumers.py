@@ -160,3 +160,47 @@ class AdminNotificationConsumer(AsyncWebsocketConsumer):
             'type': 'notification',
             'data': event['data']
         }))
+
+
+class UserNotificationConsumer(AsyncWebsocketConsumer):
+    """WebSocket consumer for per-user notifications (red-dot badge etc.)"""
+
+    async def connect(self):
+        self.user = self.scope['user']
+
+        if not self.user.is_authenticated:
+            await self.close()
+            return
+
+        self.group_name = f'user_{self.user.id}_notifications'
+
+        logger.info(f"✅ User {self.user.email} connected for notifications")
+
+        await self.channel_layer.group_add(
+            self.group_name,
+            self.channel_name
+        )
+
+        await self.accept()
+
+    async def disconnect(self, close_code):
+        if hasattr(self, 'group_name'):
+            logger.info(f"❌ User disconnecting from notifications")
+            await self.channel_layer.group_discard(
+                self.group_name,
+                self.channel_name
+            )
+
+    async def receive(self, text_data):
+        try:
+            data = json.loads(text_data)
+            message_type = data.get('type')
+            if message_type == 'ping':
+                await self.send(text_data=json.dumps({'type': 'pong', 'timestamp': __import__('time').time()}))
+        except json.JSONDecodeError:
+            logger.error('Invalid JSON received by user notification consumer')
+        except Exception as e:
+            logger.error(f'Error in user notification receive: {e}')
+
+    async def user_notification(self, event):
+        await self.send(text_data=json.dumps({'type': 'notification', 'data': event['data']}))

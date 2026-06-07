@@ -69,3 +69,37 @@ def send_admin_notification_websocket(order_id, notification_id, message, notifi
     except Exception as e:
         logger.error(f"❌ Error sending admin notification: {e}")
         return False
+
+
+def send_user_notification_websocket(user_id, notification_id, message, notification_type='order_update'):
+    """
+    Send a notification via WebSocket to a specific user
+
+    Args:
+        user_id (int): The user ID to notify
+        notification_id (int): The notification record ID
+        message (str): The notification message
+        notification_type (str): Type/category of notification
+    """
+    try:
+        channel_layer = get_channel_layer()
+        group_name = f'user_{user_id}_notifications'
+
+        async_to_sync(channel_layer.group_send)(
+            group_name,
+            {
+                'type': 'user_notification',
+                'data': {
+                    'notification_id': notification_id,
+                    'message': message,
+                    'notification_type': notification_type,
+                    'timestamp': __import__('time').time(),
+                }
+            }
+        )
+
+        logger.info(f"✅ Notification sent to user {user_id}: {message}")
+        return True
+    except Exception as e:
+        logger.error(f"❌ Error sending user notification: {e}")
+        return False

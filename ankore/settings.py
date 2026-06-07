@@ -179,26 +179,19 @@ SPECTACULAR_SETTINGS = {
 PHONENUMBER_DEFAULT_REGION = 'UG'
 
 # ========== EMAIL SETTINGS FOR NOTIFICATIONS ==========
-# Option 1: For development - print emails to console (currently using this)
-EMAIL_BACKEND = 'django.core.mail.backends.console.EmailBackend'
-
-# Option 2: For production with Gmail (uncomment to use)
-# EMAIL_BACKEND = 'django.core.mail.backends.smtp.EmailBackend'
-# EMAIL_HOST = 'smtp.gmail.com'
-# EMAIL_PORT = 587
-# EMAIL_USE_TLS = True
-# EMAIL_HOST_USER = os.getenv('EMAIL_HOST_USER', 'your_email@gmail.com')
-# EMAIL_HOST_PASSWORD = os.getenv('EMAIL_HOST_PASSWORD', 'your_app_password')
-# DEFAULT_FROM_EMAIL = EMAIL_HOST_USER
-
-# Option 3: For production with custom domain
-# EMAIL_BACKEND = 'django.core.mail.backends.smtp.EmailBackend'
-# EMAIL_HOST = os.getenv('EMAIL_HOST', 'smtp.yourdomain.com')
-# EMAIL_PORT = int(os.getenv('EMAIL_PORT', 587))
-# EMAIL_USE_TLS = True
-# EMAIL_HOST_USER = os.getenv('EMAIL_HOST_USER')
-# EMAIL_HOST_PASSWORD = os.getenv('EMAIL_HOST_PASSWORD')
-# DEFAULT_FROM_EMAIL = f"Ankore Fresh <{EMAIL_HOST_USER}>"
+# Use SMTP if environment variables are provided, otherwise fall back to console backend for development.
+if os.getenv('EMAIL_HOST'):
+    EMAIL_BACKEND = 'django.core.mail.backends.smtp.EmailBackend'
+    EMAIL_HOST = os.getenv('EMAIL_HOST')
+    EMAIL_PORT = int(os.getenv('EMAIL_PORT', 587))
+    EMAIL_USE_TLS = os.getenv('EMAIL_USE_TLS', 'True').lower() in ('true', '1', 'yes')
+    EMAIL_HOST_USER = os.getenv('EMAIL_HOST_USER')
+    EMAIL_HOST_PASSWORD = os.getenv('EMAIL_HOST_PASSWORD')
+    DEFAULT_FROM_EMAIL = os.getenv('DEFAULT_FROM_EMAIL', EMAIL_HOST_USER or 'no-reply@ankorefresh.com')
+else:
+    # Development: print emails to console
+    EMAIL_BACKEND = 'django.core.mail.backends.console.EmailBackend'
+    DEFAULT_FROM_EMAIL = os.getenv('DEFAULT_FROM_EMAIL', 'no-reply@ankorefresh.com')
 
 # ========== SITE URL FOR EMAIL LINKS ==========
 # Update this with your current IP address

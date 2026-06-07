@@ -12,4 +12,9 @@ websocket_urlpatterns = [
         consumers.AdminNotificationConsumer.as_asgi(),
         name='admin_notifications_ws'
     ),
+    re_path(
+        r'ws/notifications/user/$',
+        consumers.UserNotificationConsumer.as_asgi(),
+        name='user_notifications_ws'
+    ),
 ]

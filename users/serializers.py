@@ -11,9 +11,9 @@ class UserRegistrationSerializer(serializers.ModelSerializer):
     first_name = serializers.CharField(required=False, allow_blank=True)
     last_name = serializers.CharField(required=False, allow_blank=True)
     phone = serializers.CharField(required=False, allow_blank=True)
-    store_name = serializers.CharField(required=False, allow_blank=True)
-    business_address = serializers.CharField(required=False, allow_blank=True)
-    tax_id = serializers.CharField(required=False, allow_blank=True)
+    store_name = serializers.CharField(required=False, allow_blank=True, allow_null=True)
+    business_address = serializers.CharField(required=False, allow_blank=True, allow_null=True)
+    tax_id = serializers.CharField(required=False, allow_blank=True, allow_null=True)
     location = serializers.CharField(required=False, allow_blank=True)
     date_of_birth = serializers.DateField(required=False, allow_null=True)
     

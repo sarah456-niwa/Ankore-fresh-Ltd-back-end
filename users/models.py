@@ -59,3 +59,14 @@ class User(AbstractUser):
     @property
     def can_sell(self):
         return self.is_bulk_buyer and self.is_verified_seller
+
+
+class PasswordResetCode(models.Model):
+    user = models.ForeignKey('users.User', on_delete=models.CASCADE, related_name='password_reset_codes')
+    code = models.CharField(max_length=10)
+    created_at = models.DateTimeField(auto_now_add=True)
+    expires_at = models.DateTimeField()
+    used = models.BooleanField(default=False)
+
+    def __str__(self):
+        return f"PasswordResetCode(user={self.user.email}, code={self.code})"

@@ -99,8 +99,8 @@ Contact Support: support@ankorefresh.com
         # Attach HTML version
         msg.attach_alternative(html_content, "text/html")
         
-        # Send email
-        msg.send(fail_silently=True)
+        # Send email (don't silently ignore errors so they are logged)
+        msg.send(fail_silently=False)
         print(f"✅ Welcome email sent to {user.email}")
         return True
         

@@ -11,7 +11,7 @@ from decimal import Decimal
 from cart.models import Cart, CartItem
 from .models import Order, OrderItem, OrderTracking, OrderNotification
 from .serializers import OrderSerializer, OrderCreateSerializer, OrderStatusUpdateSerializer, OrderNotificationSerializer
-from .websocket_utils import send_order_update_websocket, send_admin_notification_websocket
+from .websocket_utils import send_order_update_websocket, send_admin_notification_websocket, send_user_notification_websocket
 from notifications.models import Notification
 
 
@@ -50,9 +50,9 @@ class OrderCreateView(generics.CreateAPIView):
         print("=" * 60)
         print("📦 RECEIVED ORDER REQUEST")
         print("=" * 60)
-        
+
         data = request.data
-        
+
         # Get or create user using your custom User model
         from users.models import User
         
@@ -150,6 +150,11 @@ class OrderCreateView(generics.CreateAPIView):
         # Extract delivery details
         delivery_address = data.get('delivery_address') or data.get('address') or ''
         delivery_phone = data.get('delivery_phone') or data.get('phone') or customer_phone or ''
+        # Normalize empty phone strings to None for PhoneNumberField
+        if delivery_phone == '':
+            delivery_phone = None
+        if customer_phone == '':
+            customer_phone = None
         delivery_instructions = data.get('delivery_instructions') or data.get('instructions') or ''
         payment_method = data.get('payment_method') or data.get('paymentMethod') or 'cash'
         payment_method = payment_method.lower()
@@ -171,7 +176,8 @@ class OrderCreateView(generics.CreateAPIView):
         total = subtotal + delivery_fee + service_fee + tax
         
         # Create order
-        order = Order.objects.create(
+        try:
+            order = Order.objects.create(
             user=user,
             customer_name=customer_name,
             customer_email=customer_email or user.email,
@@ -187,6 +193,11 @@ class OrderCreateView(generics.CreateAPIView):
             tax=tax,
             total=total
         )
+        except Exception as e:
+            import traceback
+            tb = traceback.format_exc()
+            print("❌ Error creating order:\n", tb)
+            return Response({'success': False, 'error': 'Server error creating order', 'details': str(e)}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
         
         # Create order items
         for cart_item in cart.items.all():
@@ -398,6 +409,30 @@ class OrderCancelView(APIView):
             message=f"Order {order.order_number} has been cancelled by customer {order.customer_name or 'Unknown'}",
             notification_type='order_cancelled'
         )
+        # Create in-app notifications for admins
+        from users.models import User
+        admin_users = User.objects.filter(is_superuser=True)  # or user_type=='admin'
+        for admin in admin_users:
+            Notification.objects.create(
+                user=admin,
+                title=f"Order Cancelled - {order.order_number}",
+                message=f"Order {order.order_number} was cancelled by {order.customer_name or 'Customer'}",
+                notification_type='order',
+                data={'order_id': order.id, 'order_number': order.order_number}
+            )
+
+        # Notify the customer via in-app websocket (confirmation)
+        try:
+            user_note = Notification.objects.create(
+                user=request.user,
+                title="Order Cancelled",
+                message=f"Your order #{order.order_number} has been cancelled successfully",
+                notification_type='delivery',
+                data={'order_id': order.id}
+            )
+            send_user_notification_websocket(request.user.id, user_note.id, user_note.message, notification_type='order_cancelled')
+        except Exception:
+            pass
         
         # Send WebSocket update to customer
         serializer = OrderSerializer(order)
