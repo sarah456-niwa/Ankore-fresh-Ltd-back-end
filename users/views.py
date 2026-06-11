@@ -9,9 +9,16 @@ from .serializers import UserRegistrationSerializer, UserLoginSerializer, UserDe
 from .models import User
 from .models import PasswordResetCode
 from .utils import send_sms
+from .email_service import send_password_reset_email
 from django.utils import timezone
 from datetime import timedelta
 import random
+from rest_framework.views import APIView
+from rest_framework.permissions import IsAuthenticated
+from rest_framework import status
+from rest_framework.response import Response
+from .models import Favorite
+from .serializers import FavoriteSerializer, ChangePasswordSerializer
 
 class RegistrationView(generics.CreateAPIView):
     serializer_class = UserRegistrationSerializer
@@ -104,8 +111,8 @@ class MobileLoginView(APIView):
                 'message': 'Invalid email or password'
             }, status=status.HTTP_401_UNAUTHORIZED)
         
-        # Authenticate user
-        user = authenticate(request, username=user.username, password=password)
+        # Authenticate user using the configured USERNAME_FIELD (email)
+        user = authenticate(request, username=email, password=password)
         
         if user is not None:
             # Login the user - this creates the session
@@ -205,6 +212,64 @@ class PasswordResetSMSRequestView(APIView):
         return Response({'message': 'Reset code sent via SMS'}, status=status.HTTP_200_OK)
 
 
+class PasswordResetEmailRequestView(APIView):
+    """Send a password reset code via email to the user's email address."""
+    permission_classes = [permissions.AllowAny]
+
+    def post(self, request):
+        email = request.data.get('email')
+        if not email:
+            return Response({'error': 'Email is required'}, status=status.HTTP_400_BAD_REQUEST)
+
+        try:
+            user = User.objects.get(email=email)
+        except User.DoesNotExist:
+            return Response({'error': 'User not found'}, status=status.HTTP_404_NOT_FOUND)
+
+        # Generate 6-digit code
+        code = f"{random.randint(100000, 999999)}"
+        expires_at = timezone.now() + timedelta(minutes=15)
+        PasswordResetCode.objects.create(user=user, code=code, expires_at=expires_at)
+
+        # Send email (prints in dev)
+        ok = send_password_reset_email(user, code)
+        if ok:
+            return Response({'message': 'Reset code sent via email'}, status=status.HTTP_200_OK)
+        else:
+            return Response({'message': 'Reset code saved; failed to send email (check logs)'}, status=status.HTTP_200_OK)
+
+
+class PasswordResetEmailConfirmView(APIView):
+    """Verify code sent by email and set a new password."""
+    permission_classes = [permissions.AllowAny]
+
+    def post(self, request):
+        email = request.data.get('email')
+        code = request.data.get('code')
+        new_password = request.data.get('new_password')
+
+        if not email or not code or not new_password:
+            return Response({'error': 'email, code and new_password are required'}, status=status.HTTP_400_BAD_REQUEST)
+
+        try:
+            user = User.objects.get(email=email)
+        except User.DoesNotExist:
+            return Response({'error': 'User not found'}, status=status.HTTP_404_NOT_FOUND)
+
+        now = timezone.now()
+        try:
+            pr = PasswordResetCode.objects.filter(user=user, code=code, used=False, expires_at__gte=now).latest('created_at')
+        except PasswordResetCode.DoesNotExist:
+            return Response({'error': 'Invalid or expired code'}, status=status.HTTP_400_BAD_REQUEST)
+
+        user.set_password(new_password)
+        user.save()
+        pr.used = True
+        pr.save()
+
+        return Response({'message': 'Password reset successful'}, status=status.HTTP_200_OK)
+
+
 class PasswordResetSMSConfirmView(APIView):
     """Verify code and set new password."""
     permission_classes = [permissions.AllowAny]
@@ -239,3 +304,49 @@ class PasswordResetSMSConfirmView(APIView):
         pr.save()
 
         return Response({'message': 'Password reset successful'}, status=status.HTTP_200_OK)
+
+
+class FavoritesListCreateView(APIView):
+    permission_classes = [IsAuthenticated]
+
+    def get(self, request):
+        favs = Favorite.objects.filter(user=request.user).order_by('-created_at')
+        serializer = FavoriteSerializer(favs, many=True)
+        return Response(serializer.data)
+
+    def post(self, request):
+        serializer = FavoriteSerializer(data=request.data)
+        if serializer.is_valid():
+            product_id = serializer.validated_data['product_id']
+            fav, created = Favorite.objects.get_or_create(user=request.user, product_id=product_id)
+            return Response({'product_id': fav.product_id, 'created': created}, status=status.HTTP_201_CREATED)
+        return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
+
+
+class FavoriteDeleteView(APIView):
+    permission_classes = [IsAuthenticated]
+
+    def delete(self, request, product_id):
+        try:
+            fav = Favorite.objects.get(user=request.user, product_id=product_id)
+            fav.delete()
+            return Response({'deleted': True})
+        except Favorite.DoesNotExist:
+            return Response({'deleted': False}, status=status.HTTP_404_NOT_FOUND)
+
+
+class ChangePasswordView(APIView):
+    permission_classes = [IsAuthenticated]
+
+    def post(self, request):
+        serializer = ChangePasswordSerializer(data=request.data)
+        if not serializer.is_valid():
+            return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
+        old = serializer.validated_data['old_password']
+        new = serializer.validated_data['new_password']
+        user = request.user
+        if not user.check_password(old):
+            return Response({'error': 'Old password is incorrect'}, status=status.HTTP_400_BAD_REQUEST)
+        user.set_password(new)
+        user.save()
+        return Response({'message': 'Password changed successfully'})

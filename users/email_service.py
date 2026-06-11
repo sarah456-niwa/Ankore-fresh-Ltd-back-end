@@ -1,23 +1,26 @@
+import logging
+
 from django.core.mail import EmailMultiAlternatives
-from django.template.loader import render_to_string
 from django.conf import settings
-from django.utils.html import strip_tags
+
+logger = logging.getLogger(__name__)
+
 
 def send_welcome_email(user):
-    """Send welcome email with CTA buttons to new user"""
+    """Send welcome email with CTA buttons to new user.
+
+    Returns True if sending succeeded, False otherwise.
+    """
     try:
-        # Email context
         context = {
             'user_name': user.get_full_name() or user.email,
             'email': user.email,
             'shop_url': f"{settings.SITE_URL}/products",
-            'user_type': user.get_user_type_display(),
+            'user_type': getattr(user, 'get_user_type_display', lambda: '')(),
         }
-        
-        # Create email subject
+
         subject = f"Welcome to Ankore Fresh, {context['user_name']}!"
-        
-        # HTML content with buttons
+
         html_content = f"""
         <!DOCTYPE html>
         <html>
@@ -28,15 +31,11 @@ def send_welcome_email(user):
                 body {{ font-family: Arial, sans-serif; line-height: 1.6; color: #333; }}
                 .container {{ max-width: 600px; margin: 0 auto; padding: 20px; }}
                 .header {{ background-color: #4CAF50; color: white; padding: 20px; text-align: center; border-radius: 5px 5px 0 0; }}
-                .header h1 {{ margin: 0; font-size: 28px; }}
                 .content {{ background-color: #f9f9f9; padding: 30px 20px; }}
                 .welcome-text {{ font-size: 16px; margin-bottom: 20px; }}
                 .cta-buttons {{ display: flex; gap: 15px; margin-top: 30px; justify-content: center; flex-wrap: wrap; }}
                 .btn {{ display: inline-block; padding: 12px 30px; text-decoration: none; border-radius: 5px; font-weight: bold; font-size: 16px; border: none; cursor: pointer; }}
                 .btn-primary {{ background-color: #4CAF50; color: white; }}
-                .btn-primary:hover {{ background-color: #45a049; }}
-                .btn-secondary {{ background-color: #f44336; color: white; }}
-                .btn-secondary:hover {{ background-color: #da190b; }}
                 .footer {{ background-color: #333; color: white; padding: 15px; text-align: center; font-size: 12px; border-radius: 0 0 5px 5px; }}
                 .footer a {{ color: #4CAF50; text-decoration: none; }}
             </style>
@@ -51,16 +50,11 @@ def send_welcome_email(user):
                         <p>Hello <strong>{context['user_name']}</strong>,</p>
                         <p>Thank you for registering with Ankore Fresh! Your account has been created successfully.</p>
                         <p><strong>Account Type:</strong> {context['user_type']}</p>
-                        <p>You can now start shopping for fresh produce directly from us. Browse our wide selection of quality fruits, vegetables, and organic produce.</p>
+                        <p>You can now start shopping for fresh produce directly from us.</p>
                     </div>
-                    
                     <div class="cta-buttons">
                         <a href="{context['shop_url']}" class="btn btn-primary" style="display: inline-block; text-decoration: none;">🛒 Shop with Us</a>
                     </div>
-                    
-                    <p style="text-align: center; margin-top: 20px; font-size: 14px; color: #666;">
-                        💡 Not interested right now? Simply close this email to exit.
-                    </p>
                 </div>
                 <div class="footer">
                     <p>© 2026 Ankore Fresh Ltd. All rights reserved.</p>
@@ -70,40 +64,51 @@ def send_welcome_email(user):
         </body>
         </html>
         """
-        
-        # Plain text alternative
-        text_content = f"""
-Welcome to Ankore Fresh, {context['user_name']}!
 
-Thank you for registering with Ankore Fresh! Your account has been created successfully.
-
-Account Type: {context['user_type']}
-
-You can now start shopping for fresh produce directly from us. Browse our wide selection of quality fruits, vegetables, and organic produce.
-
-Shop with Us: {context['shop_url']}
-
-Contact Support: support@ankorefresh.com
-
-© 2026 Ankore Fresh Ltd. All rights reserved.
-        """
-        
-        # Create email
-        msg = EmailMultiAlternatives(
-            subject=subject,
-            body=text_content,
-            from_email=settings.DEFAULT_FROM_EMAIL,
-            to=[user.email],
+        text_content = (
+            f"Welcome to Ankore Fresh, {context['user_name']}!\n\n"
+            f"Thank you for registering with Ankore Fresh! Your account has been created successfully.\n\n"
+            f"Account Type: {context['user_type']}\n\n"
+            f"Shop with Us: {context['shop_url']}\n\n"
+            "Contact Support: support@ankorefresh.com\n\n"
+            "© 2026 Ankore Fresh Ltd. All rights reserved."
         )
-        
-        # Attach HTML version
+
+        msg = EmailMultiAlternatives(subject=subject, body=text_content, from_email=settings.DEFAULT_FROM_EMAIL, to=[user.email])
         msg.attach_alternative(html_content, "text/html")
-        
-        # Send email (don't silently ignore errors so they are logged)
         msg.send(fail_silently=False)
-        print(f"✅ Welcome email sent to {user.email}")
+        logger.info("Welcome email sent to %s", user.email)
         return True
-        
+
     except Exception as e:
-        print(f"❌ Failed to send welcome email to {user.email}: {e}")
+        logger.exception("Failed to send welcome email to %s: %s", getattr(user, 'email', '<unknown>'), e)
+        return False
+
+
+def send_password_reset_email(user, code):
+    """Send a short OTP code to user's email. Returns True on success.
+
+    Falls back to logging/printing in development when SMTP isn't configured.
+    """
+    try:
+        subject = "Your Ankore Fresh password reset code"
+        text_content = (
+            f"Your Ankore Fresh password reset code is: {code}\n\n"
+            "This code expires in 15 minutes. If you did not request a password reset, ignore this message."
+        )
+
+        html_content = f"<p>Your Ankore Fresh password reset code is: <strong>{code}</strong></p><p>This code expires in 15 minutes.</p>"
+
+        msg = EmailMultiAlternatives(subject=subject, body=text_content, from_email=settings.DEFAULT_FROM_EMAIL, to=[user.email])
+        msg.attach_alternative(html_content, "text/html")
+        msg.send(fail_silently=False)
+        logger.info("Password reset email sent to %s", user.email)
+        return True
+    except Exception as e:
+        logger.exception("Failed to send password reset email to %s: %s", getattr(user, 'email', '<unknown>'), e)
+        # dev fallback
+        try:
+            print(f"📧 Password reset email to {getattr(user,'email', '<unknown>')}: code={code}")
+        except Exception:
+            pass
         return False

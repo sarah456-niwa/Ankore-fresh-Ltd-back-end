@@ -32,7 +32,7 @@ INSTALLED_APPS = [
     'channels',
     
     # Local apps
-    'users',
+    'users.apps.UsersConfig',
     'products',
     'cart',
     'orders',

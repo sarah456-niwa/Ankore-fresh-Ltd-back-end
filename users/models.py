@@ -70,3 +70,15 @@ class PasswordResetCode(models.Model):
 
     def __str__(self):
         return f"PasswordResetCode(user={self.user.email}, code={self.code})"
+
+
+class Favorite(models.Model):
+    user = models.ForeignKey('users.User', on_delete=models.CASCADE, related_name='favorites')
+    product_id = models.CharField(max_length=50)
+    created_at = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        unique_together = ('user', 'product_id')
+
+    def __str__(self):
+        return f"Favorite(user={self.user.email}, product_id={self.product_id})"

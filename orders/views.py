@@ -73,10 +73,12 @@ class OrderCreateView(generics.CreateAPIView):
                     username = f"{base_username}{counter}"
                     counter += 1
                 
+                from django.utils.crypto import get_random_string
+                random_pw = get_random_string(12)
                 user = User.objects.create_user(
                     username=username,
                     email=customer_email,
-                    password=username + '123',
+                    password=random_pw,
                     user_type='immediate'
                 )
                 name_parts = customer_name.split(' ', 1)
@@ -88,10 +90,12 @@ class OrderCreateView(generics.CreateAPIView):
         
         if not user:
             temp_username = f"customer_{int(timezone.now().timestamp())}"
+            from django.utils.crypto import get_random_string
+            random_pw = get_random_string(12)
             user = User.objects.create_user(
                 username=temp_username,
                 email=f"{temp_username}@temp.com",
-                password='temp123',
+                password=random_pw,
                 user_type='immediate'
             )
             print(f"✅ Created temporary user: {temp_username}")
@@ -177,22 +181,25 @@ class OrderCreateView(generics.CreateAPIView):
         
         # Create order
         try:
+            # Mark newly created orders as 'confirmed' so the mobile app
+            # treats them as active (not completed) immediately after placement.
             order = Order.objects.create(
-            user=user,
-            customer_name=customer_name,
-            customer_email=customer_email or user.email,
-            customer_phone=customer_phone,
-            delivery_address=delivery_address,
-            delivery_phone=delivery_phone,
-            delivery_instructions=delivery_instructions,
-            payment_method=payment_method,
-            notes=notes,
-            subtotal=subtotal,
-            delivery_fee=delivery_fee,
-            service_fee=service_fee,
-            tax=tax,
-            total=total
-        )
+                user=user,
+                customer_name=customer_name,
+                customer_email=customer_email or user.email,
+                customer_phone=customer_phone,
+                delivery_address=delivery_address,
+                delivery_phone=delivery_phone,
+                delivery_instructions=delivery_instructions,
+                payment_method=payment_method,
+                notes=notes,
+                subtotal=subtotal,
+                delivery_fee=delivery_fee,
+                service_fee=service_fee,
+                tax=tax,
+                total=total,
+                status='confirmed'
+            )
         except Exception as e:
             import traceback
             tb = traceback.format_exc()
