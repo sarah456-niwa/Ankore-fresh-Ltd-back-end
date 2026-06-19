@@ -13,6 +13,39 @@ from .models import Order, OrderItem, OrderTracking, OrderNotification
 from .serializers import OrderSerializer, OrderCreateSerializer, OrderStatusUpdateSerializer, OrderNotificationSerializer
 from .websocket_utils import send_order_update_websocket, send_admin_notification_websocket, send_user_notification_websocket
 from notifications.models import Notification
+import threading
+import logging
+
+logger = logging.getLogger(__name__)
+
+def send_email_async(subject, message, from_email, recipient_list, html_message=None):
+    """Send email in background thread to prevent blocking the response"""
+    def send():
+        try:
+            if html_message:
+                send_mail(
+                    subject=subject,
+                    message="",
+                    from_email=from_email,
+                    recipient_list=recipient_list,
+                    fail_silently=False,
+                    html_message=html_message
+                )
+            else:
+                send_mail(
+                    subject=subject,
+                    message=message,
+                    from_email=from_email,
+                    recipient_list=recipient_list,
+                    fail_silently=False,
+                )
+            logger.info(f"✅ Email sent to {recipient_list}")
+        except Exception as e:
+            logger.error(f"❌ Failed to send email: {e}")
+    
+    thread = threading.Thread(target=send)
+    thread.start()
+    logger.info(f"📧 Email queued for {recipient_list}")
 
 
 class OrderListView(generics.ListAPIView):
@@ -234,7 +267,7 @@ class OrderCreateView(generics.CreateAPIView):
         # Create admin notification
         OrderNotification.objects.create(order=order)
         
-        # Send notifications
+        # Send notifications asynchronously
         self.send_order_confirmation_email(order)
         self.send_sms_notification(order)
         self.send_admin_notification(order)
@@ -289,15 +322,15 @@ class OrderCreateView(generics.CreateAPIView):
         </html>
         """
         
-        send_mail(
+        # Send email asynchronously
+        send_email_async(
             subject=subject,
             message="",
             from_email=settings.DEFAULT_FROM_EMAIL,
             recipient_list=[order.customer_email],
-            fail_silently=False,
             html_message=html_message
         )
-        print(f"📧 Email sent to {order.customer_email}")
+        print(f"📧 Email queued for {order.customer_email}")
     
     def send_sms_notification(self, order):
         if not order.customer_phone:
@@ -334,17 +367,17 @@ class OrderCreateView(generics.CreateAPIView):
         </html>
         """
         
+        # Send admin emails asynchronously
         for email in admin_emails:
             if email:
-                send_mail(
+                send_email_async(
                     subject=subject,
                     message="",
                     from_email=settings.DEFAULT_FROM_EMAIL,
                     recipient_list=[email],
-                    fail_silently=True,
                     html_message=html_message
                 )
-        print(f"📧 Admin notification sent")
+        print(f"📧 Admin notifications queued")
 
 
 class OrderTrackingStatusView(APIView):
@@ -598,16 +631,15 @@ Thank you for shopping with Ankore Fresh!
         if new_status in email_templates and order.customer_email:
             template = email_templates[new_status]
             try:
-                send_mail(
+                send_email_async(
                     subject=template['subject'],
                     message=template['message'],
                     from_email=settings.DEFAULT_FROM_EMAIL,
-                    recipient_list=[order.customer_email],
-                    fail_silently=False,
+                    recipient_list=[order.customer_email]
                 )
-                print(f"📧 Status update email sent to {order.customer_email} for status: {new_status}")
+                print(f"📧 Status update email queued for {order.customer_email} for status: {new_status}")
             except Exception as e:
-                print(f"❌ Failed to send email: {e}")
+                print(f"❌ Failed to queue email: {e}")
         
         # Send SMS for critical statuses
         if new_status in ['out_for_delivery', 'delivered'] and order.customer_phone:

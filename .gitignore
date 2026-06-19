@@ -1,22 +1,28 @@
-# Virtual environment
-.venv/
-
-# Env & secrets
+# Environment variables - NEVER COMMIT!
 .env
-db.sqlite3
-logs.txt
+.env.local
+.env.production
 
-# Python cache
+# Python
 __pycache__/
-*.pyc
-*.pyo
-*.pyd
+*.py[cod]
+*$py.class
+*.so
+.Python
+.venv/
+venv/
+ENV/
 
-# Static/Media (generated)
-static/
-media/
+# Django
+db.sqlite3
+/staticfiles
+/media
 
 # IDE
 .vscode/
 .idea/
-*.code-workspace
+*.swp
+*.swo
+
+# Logs
+*.log

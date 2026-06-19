@@ -3,8 +3,7 @@ from django.urls import path, include
 from django.conf import settings
 from django.conf.urls.static import static
 from drf_spectacular.views import SpectacularAPIView, SpectacularSwaggerView
-from .admin import admin_site  # Import custom admin
-
+from .admin import admin_site
 
 urlpatterns = [
     path('admin/', admin_site.urls),
@@ -13,6 +12,7 @@ urlpatterns = [
     path('api/cart/', include('cart.urls')),
     path('api/orders/', include('orders.urls')),
     path('api/notifications/', include('notifications.urls')),
+    path('api/password-reset/', include('password_reset.urls')),  # ADD THIS LINE
     
     # API Documentation
     path('api/schema/', SpectacularAPIView.as_view(), name='schema'),

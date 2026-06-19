@@ -3,18 +3,17 @@ from pathlib import Path
 from datetime import timedelta
 from dotenv import load_dotenv
 
+# Load environment variables
 load_dotenv()
 
 BASE_DIR = Path(__file__).resolve().parent.parent
 
 SECRET_KEY = os.getenv('SECRET_KEY', 'django-insecure-your-secret-key-here')
-
-DEBUG = True
-
+DEBUG = os.getenv('DEBUG', 'True') == 'True'
 ALLOWED_HOSTS = ['*']
 
 INSTALLED_APPS = [
-    'daphne',  # Must be first for Channels
+    'daphne',
     'django.contrib.admin',
     'django.contrib.auth',
     'django.contrib.contenttypes',
@@ -38,6 +37,7 @@ INSTALLED_APPS = [
     'orders',
     'notifications',
     'payments',
+    'password_reset',
 ]
 
 MIDDLEWARE = [
@@ -72,15 +72,15 @@ TEMPLATES = [
 WSGI_APPLICATION = 'ankore.wsgi.application'
 ASGI_APPLICATION = 'ankore.asgi.application'
 
-# ========== DATABASE CONFIGURATION - PostgreSQL ==========
+# ========== DATABASE ==========
 DATABASES = {
     'default': {
         'ENGINE': 'django.db.backends.postgresql',
-        'NAME': 'ankore_fresh_db',
-        'USER': 'postgres',
-        'PASSWORD': 'admin123',          # Your password
-        'HOST': 'localhost',
-        'PORT': '5432',
+        'NAME': os.getenv('DB_NAME', 'ankore_fresh_db'),
+        'USER': os.getenv('DB_USER', 'postgres'),
+        'PASSWORD': os.getenv('DB_PASSWORD', 'admin123'),
+        'HOST': os.getenv('DB_HOST', 'localhost'),
+        'PORT': os.getenv('DB_PORT', '5432'),
     }
 }
 
@@ -105,43 +105,28 @@ MEDIA_ROOT = BASE_DIR / 'media'
 
 DEFAULT_AUTO_FIELD = 'django.db.models.BigAutoField'
 
-# ========== CORS SETTINGS ==========
+# ========== CORS ==========
 CORS_ALLOW_ALL_ORIGINS = True
 CORS_ALLOWED_ORIGINS = [
     "http://localhost:3000",
     "http://localhost:8080",
     "http://127.0.0.1:8000",
     "http://10.0.2.2:8000",
-    "http://192.168.1.11:8000",  # Your current IP
-    "http://192.168.1.172:8000",  # Previous IP
+    "http://192.168.1.11:8000",
+    "http://192.168.1.172:8000",
 ]
 
 CORS_ALLOW_CREDENTIALS = True
-CORS_ALLOW_METHODS = [
-    'DELETE',
-    'GET',
-    'OPTIONS',
-    'PATCH',
-    'POST',
-    'PUT',
-]
-
+CORS_ALLOW_METHODS = ['DELETE', 'GET', 'OPTIONS', 'PATCH', 'POST', 'PUT']
 CORS_ALLOW_HEADERS = [
-    'accept',
-    'accept-encoding',
-    'authorization',
-    'content-type',
-    'dnt',
-    'origin',
-    'user-agent',
-    'x-csrftoken',
-    'x-requested-with',
+    'accept', 'accept-encoding', 'authorization', 'content-type',
+    'dnt', 'origin', 'user-agent', 'x-csrftoken', 'x-requested-with',
 ]
 
-# ========== REST FRAMEWORK SETTINGS ==========
+# ========== REST FRAMEWORK ==========
 REST_FRAMEWORK = {
     'DEFAULT_AUTHENTICATION_CLASSES': (
-        'rest_framework.authentication.SessionAuthentication',  # Added this - Option 1
+        'rest_framework.authentication.SessionAuthentication',
         'rest_framework.authentication.BasicAuthentication',
         'rest_framework_simplejwt.authentication.JWTAuthentication',
     ),
@@ -156,7 +141,7 @@ REST_FRAMEWORK = {
     'PAGE_SIZE': 20,
 }
 
-# ========== JWT SETTINGS ==========
+# ========== JWT ==========
 SIMPLE_JWT = {
     'ACCESS_TOKEN_LIFETIME': timedelta(days=1),
     'REFRESH_TOKEN_LIFETIME': timedelta(days=7),
@@ -167,7 +152,6 @@ SIMPLE_JWT = {
     'USER_ID_CLAIM': 'user_id',
 }
 
-# ========== API DOCUMENTATION ==========
 SPECTACULAR_SETTINGS = {
     'TITLE': 'Ankore Fresh API',
     'DESCRIPTION': 'API for Ankore Fresh LTD E-commerce Platform',
@@ -175,49 +159,37 @@ SPECTACULAR_SETTINGS = {
     'SERVE_INCLUDE_SCHEMA': False,
 }
 
-# ========== PHONE NUMBER SETTINGS ==========
 PHONENUMBER_DEFAULT_REGION = 'UG'
 
-# ========== EMAIL SETTINGS FOR NOTIFICATIONS ==========
-# Use SMTP if environment variables are provided, otherwise fall back to console backend for development.
+# ========== EMAIL SETTINGS (SECURE - from .env) ==========
 if os.getenv('EMAIL_HOST'):
     EMAIL_BACKEND = 'django.core.mail.backends.smtp.EmailBackend'
     EMAIL_HOST = os.getenv('EMAIL_HOST')
     EMAIL_PORT = int(os.getenv('EMAIL_PORT', 587))
-    EMAIL_USE_TLS = os.getenv('EMAIL_USE_TLS', 'True').lower() in ('true', '1', 'yes')
+    EMAIL_USE_TLS = os.getenv('EMAIL_USE_TLS', 'True').lower() == 'true'
     EMAIL_HOST_USER = os.getenv('EMAIL_HOST_USER')
     EMAIL_HOST_PASSWORD = os.getenv('EMAIL_HOST_PASSWORD')
-    DEFAULT_FROM_EMAIL = os.getenv('DEFAULT_FROM_EMAIL', EMAIL_HOST_USER or 'no-reply@ankorefresh.com')
+    DEFAULT_FROM_EMAIL = os.getenv('DEFAULT_FROM_EMAIL', EMAIL_HOST_USER)
+    print(f"📧 Email configured with: {EMAIL_HOST}")
 else:
-    # Development: print emails to console
     EMAIL_BACKEND = 'django.core.mail.backends.console.EmailBackend'
     DEFAULT_FROM_EMAIL = os.getenv('DEFAULT_FROM_EMAIL', 'no-reply@ankorefresh.com')
+    print("📧 Using console email backend (development)")
 
-# ========== SITE URL FOR EMAIL LINKS ==========
-# Update this with your current IP address
+# ========== SITE URL ==========
 SITE_URL = os.getenv('SITE_URL', 'http://192.168.1.11:8000')
 
-# ========== ADMIN EMAIL NOTIFICATIONS ==========
-# List of admin emails to receive order notifications
+# ========== ADMIN EMAILS ==========
 ADMIN_EMAILS = os.getenv('ADMIN_EMAILS', 'admin@ankorefresh.com').split(',')
 
 # ========== ADDITIONAL SETTINGS ==========
-# Maximum delivery distance in KM
 MAX_DELIVERY_DISTANCE_KM = 20
-
-# Default delivery fee
 DEFAULT_DELIVERY_FEE = 5000
-
-# Minimum order amount for free delivery (UGX)
 FREE_DELIVERY_MIN_AMOUNT = 100000
-
-# Service fee percentage (2%)
 SERVICE_FEE_PERCENTAGE = 2
-
-# Tax percentage (5%)
 TAX_PERCENTAGE = 5
 
-# ========== CHANNELS CONFIGURATION ==========
+# ========== CHANNELS ==========
 CHANNEL_LAYERS = {
     'default': {
         'BACKEND': 'channels_redis.core.RedisChannelLayer',
